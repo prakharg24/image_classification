@@ -19,17 +19,18 @@ class Model(torch.nn.Module) :
 		super(Model,self).__init__()
 		self.kernel_size = kernel_size
 		pad_dim = (int)((kernel_size -1)/2)
-		self.conv = nn.Conv2d(1, 1, kernel_size, padding = pad_dim)
+		self.conv = nn.Conv2d(1, 128, kernel_size, padding = pad_dim)
 		self.pool = nn.MaxPool2d(2)
 		self.input_dim = input_dim
 		self.hidden_dim = hidden_dim
 		self.linear_in = (int)((self.input_dim*self.input_dim)/4)
-		self.linearOut1 = nn.Linear(self.linear_in, hidden_dim)
+		self.linearOut1 = nn.Linear(self.linear_in*128, hidden_dim)
 		self.linearOut2 = nn.Linear(hidden_dim, 20)
 	def forward(self,inputs):
 		x = inputs.contiguous().view(-1, 1, self.input_dim, self.input_dim)
 		x = self.conv(x)
-		x = self.pool(x).view(-1, self.linear_in)
+		x = F.relu(x)
+		x = self.pool(x).view(-1, self.linear_in*128)
 		x = self.linearOut1(x)
 		x = F.relu(x)
 		x = self.linearOut2(x)
@@ -67,69 +68,75 @@ inp_tag = np.reshape(inp_tag, [-1])
 inp = np.reshape(inp, (-1, 28, 28))
 
 hd = 500
-ks = 9
+ks = 3
 model = Model(28, hd, ks)
 
 error = 0
 try:
-	model.load_state_dict(torch.load('/home/cse/btech/cs1150245/scratch/model' + str(hd) + '_' + str(ks) + '.pth'))
+	model.load_state_dict(torch.load('/home/cse/btech/cs1150245/scratch/model_fn_' + str(hd) + '_' + str(ks) + '.pth'))
 except:
 	error = 1
 
 loss_function = nn.NLLLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-epochs = 200
+epochs = 10
 
-for i in range(epochs) :
-	avg_loss = 0.0
-	for idx in range(0, 20):
-		input_data = Variable(torch.FloatTensor(inp[idx*5000: (idx+1)*5000]))
-		target_data = Variable(torch.LongTensor(inp_tag[idx*5000: (idx+1)*5000]))
-		y_pred = model(input_data)
-		model.zero_grad()
-		loss = loss_function(y_pred, target_data)
-		avg_loss += loss.data[0]
-		# print('epoch :%d iterations :%d loss :%g'%(i, idx, loss.data[0]))
-		loss.backward()
-		optimizer.step()
+avg_ttl = 0.0
 
-	if((i+1)%10==0):
-		tempfile = open('/home/cse/btech/cs1150245/scratch/' + str(i) + '.txt', 'w')
-		tempfile.close()
-		torch.save(model.state_dict(), '/home/cse/btech/cs1150245/scratch/model' + str(hd) + '_' + str(ks) + '.pth')
-		print('the average loss after completion of %d epochs is %g'%((i+1),(avg_loss/20)))
+for counter in range(0, 20):
+	for i in range(epochs) :
+		avg_loss = 0.0
+		for idx in range(0, 20):
+			if(idx==counter):
+				# continue
+			input_data = Variable(torch.FloatTensor(inp[idx*5000: (idx+1)*5000]))
+			target_data = Variable(torch.LongTensor(inp_tag[idx*5000: (idx+1)*5000]))
+			y_pred = model(input_data)
+			model.zero_grad()
+			loss = loss_function(y_pred, target_data)
+			avg_loss += loss.data[0]
+			# print('epoch :%d iterations :%d loss :%g'%(i, idx, loss.data[0]))
+			loss.backward()
+			optimizer.step()
 
-		acc_inp = Variable(torch.FloatTensor(inp))
-		y_pred = model(acc_inp)
-		lm = y_pred.data.cpu().numpy()
-		t = np.argmax(lm, axis = 1)
-		corr =0
-		total =0
-		for ele, pred in zip(t, inp_tag):
-			if(ele==pred):
-				corr += 1
-			total += 1
+		if((i+1)%1==0):
+			tempfile = open('/home/cse/btech/cs1150245/scratch/' + str(i) + '.txt', 'w')
+			tempfile.close()
+			torch.save(model.state_dict(), '/home/cse/btech/cs1150245/scratch/model_fn_' + str(hd) + '_' + str(ks) + '.pth')
+			print('the average loss after completion of %d epochs is %g'%((i+1),(avg_loss/20)))
 
-		print("Accuracies :")
-		print(corr)
-		print(total)
-		print((corr + 0.0)/total)
+			corr =0
+			total =0
+			for idx in range(0, 20):
+				acc_inp = Variable(torch.FloatTensor(inp[idx*5000: (idx+1)*5000]))
+				y_pred = model(acc_inp)
+				lm = y_pred.data.cpu().numpy()
+				t = np.argmax(lm, axis = 1)
+				for ele, pred in zip(t, inp_tag[idx*5000: (idx+1)*5000]):
+					if(ele==pred):
+						corr += 1
+					total += 1
 
-		if(avg_loss/20 < 0.05):
-			break
+			print("Accuracies :")
+			print(corr)
+			print(total)
+			print((corr + 0.0)/total)
+
+			if(avg_loss/20 < 0.01):
+				break
 
 
 test_inp = np.load("/home/cse/btech/cs1150245/scratch/test/test.npy")
-acc_inp = Variable(torch.FloatTensor(test_inp))
-y_pred = model(acc_inp)
-lm = y_pred.data.cpu().numpy()
-ans_arr = np.argmax(lm, axis = 1)
-
-myFile = open('/home/cse/btech/cs1150245/scratch/ans.csv', 'w', newline='')
+myFile = open('/home/cse/btech/cs1150245/scratch/ans2.csv', 'w', newline='')
 with myFile:
-    fieldnames = ['ID', 'CATEGORY']
-    writer = csv.DictWriter(myFile, fieldnames=fieldnames)
-    writer.writeheader()
-    for i, ele in enumerate(ans_arr):
-        writer.writerow({'ID' : str(i), 'CATEGORY' : inp_dict[ele]})
+	fieldnames = ['ID', 'CATEGORY']
+	writer = csv.DictWriter(myFile, fieldnames=fieldnames)
+	writer.writeheader()
+	acc_inp = Variable(torch.FloatTensor(test_inp))
+	for idx in range(0, 20):
+		y_pred = model(acc_inp[idx*5000: (idx+1)*5000])
+		lm = y_pred.data.cpu().numpy()
+		ans_arr = np.argmax(lm, axis = 1)
+		for i, ele in enumerate(ans_arr):
+			writer.writerow({'ID' : str(i + 5000*idx), 'CATEGORY' : inp_dict[ele]})

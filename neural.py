@@ -86,24 +86,30 @@ print(corr)
 print(total)
 print((corr + 0.0)/total)
 
-for i in range(epochs) :
-	avg_loss = 0.0
-	for idx in range(0, 20):
-		input_data = Variable(torch.FloatTensor(inp[idx*5000: (idx+1)*5000]))
-		target_data = Variable(torch.LongTensor(inp_tag[idx*5000: (idx+1)*5000]))
-		y_pred = model(input_data)
-		model.zero_grad()
-		loss = loss_function(y_pred, target_data)
-		avg_loss += loss.data[0]
-		# print('epoch :%d iterations :%d loss :%g'%(i, idx, loss.data[0]))
-		loss.backward()
-		optimizer.step()
+avg_ttl = 0.0
 
-	if((i+1)%10==0):
-		torch.save(model.state_dict(), '/home/cse/btech/cs1150245/scratch/model' + str(hd) + '.pth')
-		print('the average loss after completion of %d epochs is %g'%((i+1),(avg_loss/20)))
+for counter in range(0, 20):
+	for i in range(epochs) :
+		avg_loss = 0.0
+		for idx in range(0, 20):
+			if(idx==counter):
+				# continue
+			input_data = Variable(torch.FloatTensor(inp[idx*5000: (idx+1)*5000]))
+			target_data = Variable(torch.LongTensor(inp_tag[idx*5000: (idx+1)*5000]))
+			y_pred = model(input_data)
+			model.zero_grad()
+			loss = loss_function(y_pred, target_data)
+			avg_loss += loss.data[0]
+			# print('epoch :%d iterations :%d loss :%g'%(i, idx, loss.data[0]))
+			loss.backward()
+			optimizer.step()
+
+		if((i+1)%10==0):
+			torch.save(model.state_dict(), '/home/cse/btech/cs1150245/scratch/model' + str(hd) + '.pth')
+			print('the average loss after completion of %d epochs is %g'%((i+1),(avg_loss/20)))
 
 
+# print(avg_ttl/10)
 # test_inp = np.load("/home/cse/btech/cs1150245/scratch/test/test.npy")
 # acc_inp = Variable(torch.FloatTensor(test_inp))
 # y_pred = model(acc_inp)
